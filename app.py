@@ -1,29 +1,9 @@
 import streamlit as st
 from openai import OpenAI
-from dotenv import load_dotenv
 import os
 import PyPDF2
 import sqlite3
 import uuid
-
-# ==========================
-# Load Environment Variables
-# ==========================
-load_dotenv()
-
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
-if not GROQ_API_KEY:
-    st.error(" GROQ_API_KEY not found in .env file.")
-    st.stop()
-
-# ==========================
-# Initialize Groq Client
-# ==========================
-client = OpenAI(
-    api_key=GROQ_API_KEY,
-    base_url="https://api.groq.com/openai/v1",
-)
 
 # ==========================
 # Database Functions (SQLite)
@@ -136,6 +116,15 @@ with st.sidebar:
     st.title("Settings")
     st.caption(f"Session ID: `{st.session_state.session_id[:8]}...`")
 
+    # --- NEW: User Input API Key ---
+    user_api_key = st.text_input(
+        "🔑 Enter Groq API Key", 
+        type="password", 
+        help="Get your free API key from https://console.groq.com/keys"
+    )
+    
+    st.divider()
+
     model = st.selectbox(
         "Choose Model",
         [
@@ -230,6 +219,9 @@ if not combined_system_prompt:
 st.title("AI Chatbot")
 st.caption("Powered by Groq API | Chat History saved to SQLite")
 
+if not user_api_key:
+    st.warning("👈 Please enter your Groq API Key in the sidebar to start chatting.")
+
 with st.expander("View Current System Prompt & Context"):
     st.text(combined_system_prompt)
 
@@ -260,9 +252,16 @@ for message in st.session_state.messages:
 # ==========================
 # User Input
 # ==========================
-prompt = st.chat_input("Type your message...")
+# The chat input is disabled if no API key is provided
+prompt = st.chat_input("Type your message...", disabled=not user_api_key)
 
-if prompt:
+if prompt and user_api_key:
+    # Initialize Groq Client dynamically using the user's provided key
+    client = OpenAI(
+        api_key=user_api_key,
+        base_url="https://api.groq.com/openai/v1",
+    )
+
     # 1. Save User Message to Session State & DB
     st.session_state.messages.append({"role": "user", "content": prompt})
     save_message(st.session_state.session_id, "user", prompt)
